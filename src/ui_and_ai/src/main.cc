@@ -39,7 +39,10 @@ using std::vector;
 static std::mutex result_mutex;
 static vector<FaceEmotionInfo> face_emotion_results;
 static vector<FaceDetectionInfo> face_det_results;
+static vector<FaceEmotionInfo> cached_emotion_results; // reuse recent emotion results when skipping frames
 static constexpr unsigned BUFFER_NUM = 3;
+static constexpr int kEmotionFrameInterval = 5; // run emotion every N frames to avoid starving UI
+static constexpr int kEmotionCooldownMs = 3000;
 std::atomic<bool> ai_stop(false);
 std::atomic<bool> display_stop(false);
 static volatile unsigned kpu_frame_count = 0;
@@ -108,7 +111,9 @@ void ai_proc(char *argv[], int video_device)
     }
     SensorBufManager sensor_buf({SENSOR_CHANNEL, SENSOR_HEIGHT, SENSOR_WIDTH}, tensors);
 
+    size_t frame_count = 0;
     while (!ai_stop) {
+        bool run_emotion_this_frame = (frame_count % kEmotionFrameInterval) == 0;
         int ret = v4l2_drm_dump(&context, 1000);
         if (ret) {
             perror("v4l2_drm_dump error");
@@ -123,19 +128,34 @@ void ai_proc(char *argv[], int video_device)
         face_det.post_process({SENSOR_WIDTH, SENSOR_HEIGHT}, face_det_results);
 
         face_emotion_results.clear();
+        if (run_emotion_this_frame) {
+            cached_emotion_results.clear();
+        }
         bool need_wakeup = false;
         string wakeup_text;
         long long now = now_ms();
 
         for (size_t i = 0; i < face_det_results.size(); ++i) {
-            face_emo.pre_process(img_data, face_det_results[i].sparse_kps.points);
-            face_emo.inference();
+            FaceEmotionInfo emo_result{};
+            if (run_emotion_this_frame) {
+                face_emo.pre_process(img_data, face_det_results[i].sparse_kps.points);
+                face_emo.inference();
+                face_emo.post_process(emo_result);
+                cached_emotion_results.push_back(emo_result);
+            }
+            else {
+                if (i < cached_emotion_results.size()) {
+                    emo_result = cached_emotion_results[i];
+                }
+                else {
+                    emo_result = FaceEmotionInfo{0, 0.0f, "Neutral"};
+                    cached_emotion_results.push_back(emo_result);
+                }
+            }
 
-            FaceEmotionInfo emo_result;
-            face_emo.post_process(emo_result);
             face_emotion_results.push_back(emo_result);
 
-            if (!need_wakeup && emo_result.label != "Neutral" && now - g_last_emotion_trigger_ms.load() >= 3000) {
+            if (run_emotion_this_frame && !need_wakeup && emo_result.label != "Neutral" && now - g_last_emotion_trigger_ms.load() >= kEmotionCooldownMs) {
                 auto zh = kEmotionLabelZh.find(emo_result.label);
                 string zh_label = (zh != kEmotionLabelZh.end()) ? zh->second : emo_result.label;
                 wakeup_text = "我当前情绪是" + zh_label;
@@ -156,6 +176,7 @@ void ai_proc(char *argv[], int video_device)
         }
 
         kpu_frame_count += 1;
+        frame_count += 1;
         v4l2_drm_dump_release(&context);
     }
     v4l2_drm_stop(&context);

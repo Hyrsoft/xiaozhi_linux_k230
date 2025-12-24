@@ -17,6 +17,8 @@
  */
 #include "control_center.h"
 #include "acap.h"
+#include <atomic>
+#include <chrono>
 #include <stdio.h>
 #include <sys/mman.h>
 #include <unistd.h>
@@ -43,12 +45,20 @@ static WakeupMethodMode g_wakeup_method = kWakeupMethodModeUnknown; // 默认值
 extern int g_audio_upload_enable;
 SpeechInteractionMode g_speech_interaction_mode = kSpeechInteractionModeAuto;
 int g_wakeup_word_start = 0;
+static std::atomic<bool> g_tts_busy{false};
+static std::atomic<long long> g_last_wakeup_ms{0};
+static constexpr long long kWakeCooldownMs = 3000;
 
 p_ipc_endpoint_t g_ipc_wakeup_detect_audio_ep;
 p_ipc_endpoint_t g_ipc_wakeup_detect_control_ep;
 
 #define VIDEO_WAKEUP_KEYWORD "你好小凡，"
 static std::string g_video_wakeup_person_name;
+
+static long long now_ms()
+{
+    return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+}
 
 static void audio_data_upload_cb(const unsigned char* data, int length)
 {
@@ -74,6 +84,7 @@ static void audio_data_download_cb(const unsigned char* data, int length)
 static void audio_data_tts_state_cb(int tts_state)
 {
     //printf("========audio tts state===========:%d\n",tts_state);
+    g_tts_busy.store(tts_state != 0);
     //set_tts_state(tts_state);
 }
 
@@ -210,6 +221,18 @@ static int process_wakeup_word_control_info(char *buffer, size_t size, void *use
         //开始唤醒
         if (j["status"] == "start")
         {
+            auto now = now_ms();
+            auto last = g_last_wakeup_ms.load();
+            if (g_tts_busy.load()) {
+                printf("TTS is busy, ignore wake-up trigger.\n");
+                return 0;
+            }
+
+            if (now - last < kWakeCooldownMs) {
+                printf("Wake-up ignored during cooldown (%lld ms).\n", now - last);
+                return 0;
+            }
+
             std::string wakeup_method = j["wake-up_method"];
             if (wakeup_method == "voice")
             {
@@ -233,6 +256,8 @@ static int process_wakeup_word_control_info(char *buffer, size_t size, void *use
                 printf("wakeup method is unknown\n");
                 return 0;
             }
+
+            g_last_wakeup_ms.store(now);
 
             _do_wakeup_word_detected();
         }
