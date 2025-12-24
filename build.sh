@@ -30,6 +30,14 @@ fi
 # 复制 utils 目录到 k230_bin
 cp -r "${root_dir}/src/ui_and_ai/utils"/* ${k230_bin}
 
+# 确保情绪模型存在（复用 ai_demo 下载的资源）
+emo_model_src="${root_dir}/../ai_demo/kmodel/ai_poc/kmodel/face_emotion.kmodel"
+if [ -f "${emo_model_src}" ]; then
+    cp "${emo_model_src}" "${k230_bin}/"
+else
+    echo "warning: face_emotion.kmodel not found at ${emo_model_src}"
+fi
+
 # 清理 ui_and_ai 的输出目录
 rm -rf out
 

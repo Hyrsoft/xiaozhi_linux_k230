@@ -75,13 +75,14 @@ void Utils::padding_resize_one_side(FrameCHWSize ori_shape, FrameSize resize_sha
     ai2d_datatype_t ai2d_dtype{ai2d_format::NCHW_FMT, ai2d_format::NCHW_FMT, typecode_t::dt_uint8, ai2d_out_tensor.datatype()};
     ai2d_crop_param_t crop_param{false, 0, 0, 0, 0};
     ai2d_shift_param_t shift_param{false, 0};
-    ai2d_pad_param_t pad_param{true, {{0, 0}, {0, 0}, {top, bottom}, {left, right}}, ai2d_pad_mode::constant, {padding[0], padding[1], padding[2]}};
+    ai2d_pad_param_t pad_param{true, {{0, 0}, {0, 0}, {top, bottom}, {left, right}}, ai2d_pad_mode::constant,
+                               {static_cast<int>(padding[0]), static_cast<int>(padding[1]), static_cast<int>(padding[2])}};
     ai2d_resize_param_t resize_param{true, ai2d_interp_method::tf_bilinear, ai2d_interp_mode::half_pixel};
     ai2d_affine_param_t affine_param{false, ai2d_interp_method::cv2_bilinear, 0, 0, 127, 1, {0.5, 0.1, 0.0, 0.1, 0.5, 0.0}};
     dims_t in_shape{1, ori_shape.channel, ori_shape.height, ori_shape.width};
     dims_t out_shape = ai2d_out_tensor.shape();
     builder.reset(new ai2d_builder(in_shape, out_shape, ai2d_dtype, crop_param, shift_param, pad_param, resize_param, affine_param));
-    builder->build_schedule();
+    builder->build_schedule().expect("build_schedule failed");
 
 }
 
@@ -98,6 +99,6 @@ void Utils::affine(float *affine_matrix, std::unique_ptr<ai2d_builder> &builder,
     dims_t in_shape = ai2d_in_tensor.shape();
     dims_t out_shape = ai2d_out_tensor.shape();
     builder.reset(new ai2d_builder(in_shape, out_shape, ai2d_dtype, crop_param, shift_param, pad_param, resize_param, affine_param));
-    builder->build_schedule();
+    builder->build_schedule().expect("build_schedule failed");
     builder->invoke(ai2d_in_tensor,ai2d_out_tensor).expect("error occurred in ai2d running");
 }

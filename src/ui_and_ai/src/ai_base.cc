@@ -67,7 +67,31 @@ void AIBase::set_input_init()
         if (debug_mode_ > 1)
             cout << endl;
         input_shapes_.push_back(in_shape);
+        if (desc.datatype == dt_int8 || desc.datatype == dt_uint8)
+        {
+            input_total_size += dsize;
+        }
+        else if (desc.datatype == dt_int16 || desc.datatype == dt_uint16 || desc.datatype == dt_float16 || desc.datatype == dt_bfloat16)
+        {
+            input_total_size += (dsize * 2);
+        }
+        else if (desc.datatype == dt_int32 || desc.datatype == dt_uint32 || desc.datatype == dt_float32)
+        {
+            input_total_size += (dsize * 4);
+        }
+        else if(desc.datatype == dt_int64 || desc.datatype == dt_uint64 || desc.datatype == dt_float64)
+        {
+            input_total_size += (dsize * 8);
+        }
+        else
+        {
+            printf("input data type:%d",desc.datatype);
+            assert(("unsupported kmodel output data type", 0));
+        }
+        each_input_size_by_byte_.push_back(input_total_size);
+
     }
+    each_input_size_by_byte_.push_back(input_total_size); // 最后一个保存总大小
 }
 
 void AIBase::set_input_tensor(size_t idx, runtime_tensor &tensor)
@@ -105,6 +129,31 @@ void AIBase::set_output_init()
         if (debug_mode_ > 1)
             cout << endl;
         output_shapes_.push_back(out_shape);
+        if (desc.datatype == dt_int8 || desc.datatype == dt_uint8)
+        {
+            output_total_size += dsize;
+        }
+        else if (desc.datatype == dt_int16 || desc.datatype == dt_uint16 || desc.datatype == dt_float16 || desc.datatype == dt_bfloat16)
+        {
+            output_total_size += (dsize * 2);
+        }
+        else if (desc.datatype == dt_int32 || desc.datatype == dt_uint32 || desc.datatype == dt_float32)
+        {
+            output_total_size += (dsize * 4);
+        }
+        else if(desc.datatype == dt_int64 || desc.datatype == dt_uint64 || desc.datatype == dt_float64)
+        {
+            output_total_size += (dsize * 8);
+        }
+        else
+        {
+            printf("output data type:%d",desc.datatype);
+            assert(("unsupported kmodel output data type", 0));
+        }
+
+        each_output_size_by_byte_.push_back(output_total_size);
+        auto tensor = host_runtime_tensor::create(desc.datatype, shape, hrt::pool_shared).expect("cannot create output tensor");
+        kmodel_interp_.output_tensor(i, tensor).expect("cannot set output tensor");
     }
 }
 

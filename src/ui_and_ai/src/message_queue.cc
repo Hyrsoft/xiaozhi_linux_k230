@@ -58,7 +58,7 @@ typedef struct {
 
 // JSON数据生成函数
 static char* create_ui_json(ui_cmd_message_t* message) {
-    char empty_str[] = "";
+    static char empty_str[] = "";
     if (message == NULL) {
         std::cout << "Invalid input parameters." << std::endl;
         return empty_str;
@@ -72,7 +72,7 @@ static char* create_ui_json(ui_cmd_message_t* message) {
 }
 
 static char* create_ai_json(ai_cmd_message_t* message) {
-    char empty_str[] = "";
+    static char empty_str[] = "";
     if (message == NULL) {
         std::cout << "Invalid input parameters." << std::endl;
         return empty_str;

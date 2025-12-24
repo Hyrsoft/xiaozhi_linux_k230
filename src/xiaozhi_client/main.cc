@@ -47,7 +47,7 @@ int g_wakeup_word_start = 0;
 p_ipc_endpoint_t g_ipc_wakeup_detect_audio_ep;
 p_ipc_endpoint_t g_ipc_wakeup_detect_control_ep;
 
-#define VIDEO_WAKEUP_KEYWORD "你好小智，我是"
+#define VIDEO_WAKEUP_KEYWORD "你好小凡，"
 static std::string g_video_wakeup_person_name;
 
 static void audio_data_upload_cb(const unsigned char* data, int length)

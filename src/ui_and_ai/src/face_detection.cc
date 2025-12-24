@@ -70,7 +70,9 @@ FaceDetection::FaceDetection(const char *kmodel_file, float obj_thresh,float nms
 
     ai2d_out_tensor_ = get_input_tensor(0);
     // set padding resize param
-    Utils::padding_resize_one_side(isp_shape, {input_shapes_[0][3], input_shapes_[0][2]}, ai2d_builder_, ai2d_in_tensor_, ai2d_out_tensor_, cv::Scalar(104, 117, 123));
+    Utils::padding_resize_one_side(isp_shape,
+                                   {static_cast<size_t>(input_shapes_[0][3]), static_cast<size_t>(input_shapes_[0][2])},
+                                   ai2d_builder_, ai2d_in_tensor_, ai2d_out_tensor_, cv::Scalar(104, 117, 123));
 }
 
 FaceDetection::~FaceDetection()
