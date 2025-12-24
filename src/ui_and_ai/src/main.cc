@@ -41,8 +41,8 @@ static vector<FaceEmotionInfo> face_emotion_results;
 static vector<FaceDetectionInfo> face_det_results;
 static vector<FaceEmotionInfo> cached_emotion_results; // reuse recent emotion results when skipping frames
 static constexpr unsigned BUFFER_NUM = 3;
-static constexpr int kEmotionFrameInterval = 5; // run emotion every N frames to avoid starving UI
 static constexpr int kEmotionCooldownMs = 3000;
+static constexpr int kEmotionIntervalMs = 1000; // run emotion at most once per second
 std::atomic<bool> ai_stop(false);
 std::atomic<bool> display_stop(false);
 static volatile unsigned kpu_frame_count = 0;
@@ -111,9 +111,11 @@ void ai_proc(char *argv[], int video_device)
     }
     SensorBufManager sensor_buf({SENSOR_CHANNEL, SENSOR_HEIGHT, SENSOR_WIDTH}, tensors);
 
+    long long last_emotion_infer_ms = 0;
     size_t frame_count = 0;
     while (!ai_stop) {
-        bool run_emotion_this_frame = (frame_count % kEmotionFrameInterval) == 0;
+        long long loop_now = now_ms();
+        bool run_emotion_this_frame = (loop_now - last_emotion_infer_ms) >= kEmotionIntervalMs;
         int ret = v4l2_drm_dump(&context, 1000);
         if (ret) {
             perror("v4l2_drm_dump error");
@@ -142,6 +144,7 @@ void ai_proc(char *argv[], int video_device)
                 face_emo.inference();
                 face_emo.post_process(emo_result);
                 cached_emotion_results.push_back(emo_result);
+                last_emotion_infer_ms = now;
             }
             else {
                 if (i < cached_emotion_results.size()) {
@@ -162,6 +165,9 @@ void ai_proc(char *argv[], int video_device)
                 need_wakeup = true;
                 g_last_emotion_trigger_ms.store(now);
             }
+        }
+        if (run_emotion_this_frame) {
+            last_emotion_infer_ms = now;
         }
         result_mutex.unlock();
 
